@@ -14,59 +14,72 @@ public class MainActivity extends Activity {
         
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(40, 40, 40, 40);
+        layout.setPadding(40, 50, 40, 40);
         layout.setBackgroundColor(Color.parseColor("#121212"));
 
         TextView title = new TextView(this);
-        title.setText("🔥 Exhxx Radar V1.5 (Termux Mode) 🔥\nDeveloped by: Haider Adel");
+        title.setText("Exhxx Radar\nDev: Mohammed Adnan | Channel: @exhxx78");
         title.setTextColor(Color.CYAN);
         title.setTextSize(18);
-        title.setPadding(0, 0, 0, 30);
+        title.setPadding(0, 0, 0, 40);
         
+        EditText targetInput = new EditText(this);
+        targetInput.setHint("اسم التطبيق (مثال: mobi.foo.zain)");
+        targetInput.setHintTextColor(Color.GRAY);
+        targetInput.setTextColor(Color.WHITE);
+        targetInput.setBackgroundColor(Color.parseColor("#1E1E1E"));
+        targetInput.setPadding(25, 25, 25, 25);
+        
+        TextView space = new TextView(this);
+        space.setHeight(20);
+
         EditText keywordInput = new EditText(this);
-        keywordInput.setHint("كلمات الفلترة (مثلاً: http|api|zain)");
+        keywordInput.setHint("الفلترة (اختياري، مثلاً: http|api)");
         keywordInput.setHintTextColor(Color.GRAY);
         keywordInput.setTextColor(Color.WHITE);
         keywordInput.setBackgroundColor(Color.parseColor("#1E1E1E"));
         keywordInput.setPadding(25, 25, 25, 25);
 
+        LinearLayout buttonsLayout = new LinearLayout(this);
+        buttonsLayout.setOrientation(LinearLayout.HORIZONTAL);
+        buttonsLayout.setPadding(0, 30, 0, 0);
+        
         Button btnStart = new Button(this);
-        btnStart.setText("🟢 بدء المراقبة بالخلفية");
+        btnStart.setText("بدء الصيد");
         btnStart.setBackgroundColor(Color.parseColor("#43A047"));
         btnStart.setTextColor(Color.WHITE);
         
         Button btnStop = new Button(this);
-        btnStop.setText("🔴 إيقاف الإشعار والمراقبة");
+        btnStop.setText("إيقاف");
         btnStop.setBackgroundColor(Color.parseColor("#E53935"));
         btnStop.setTextColor(Color.WHITE);
 
-        TextView terminal = new TextView(this);
-        terminal.setTextColor(Color.GREEN);
-        terminal.setPadding(20, 40, 20, 20);
-        terminal.setTextSize(14);
-        terminal.setText(">> وضع التيرموكس جاهز!\n\n1. اضغط بدء.\n2. سيظهر إشعار في شريط الإشعارات أعلى الشاشة.\n3. يمكنك إغلاق هذا التطبيق بالكامل، وسيستمر التسجيل بالخلفية.\n4. تجد الصيدة في مسار:\n/sdcard/Exhxx_Dump/live_hunter_log.txt");
-
         btnStart.setOnClickListener(v -> {
             Intent serviceIntent = new Intent(this, SnifferService.class);
+            serviceIntent.putExtra("pkg", targetInput.getText().toString().trim());
             serviceIntent.putExtra("keyword", keywordInput.getText().toString().trim());
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent);
             } else {
                 startService(serviceIntent);
             }
-            Toast.makeText(this, "✅ المراقبة بدأت! راقب شريط الإشعارات.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "بدأ التسجيل بالخلفية...", Toast.LENGTH_SHORT).show();
         });
 
         btnStop.setOnClickListener(v -> {
             stopService(new Intent(this, SnifferService.class));
-            Toast.makeText(this, "🛑 تم الإيقاف.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "تم الإيقاف.", Toast.LENGTH_SHORT).show();
         });
 
+        buttonsLayout.addView(btnStart);
+        buttonsLayout.addView(btnStop);
+
         layout.addView(title);
+        layout.addView(targetInput);
+        layout.addView(space);
         layout.addView(keywordInput);
-        layout.addView(btnStart);
-        layout.addView(btnStop);
-        layout.addView(terminal);
+        layout.addView(buttonsLayout);
         
         setContentView(layout);
     }
