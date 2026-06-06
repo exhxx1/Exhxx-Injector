@@ -19,7 +19,7 @@ public class MainActivity extends Activity {
         layout.setBackgroundColor(Color.parseColor("#121212"));
 
         TextView title = new TextView(this);
-        title.setText("🔥 Exhxx Auto-Injector V1.2.1 🔥\nDeveloped by: Haider Adel");
+        title.setText("🔥 Exhxx Auto-Injector V1.2.2 🔥\nDeveloped by: Haider Adel");
         title.setTextColor(Color.CYAN);
         title.setTextSize(20);
         title.setPadding(0, 0, 0, 50);
@@ -37,7 +37,7 @@ public class MainActivity extends Activity {
         btnRoot.setTextColor(Color.WHITE);
 
         Button btnFrida = new Button(this);
-        btnFrida.setText("2. تنصيب وتشغيل أدوات Frida");
+        btnFrida.setText("2. إيقاف الحماية وتشغيل Frida");
         btnFrida.setBackgroundColor(Color.parseColor("#43A047"));
         btnFrida.setTextColor(Color.WHITE);
 
@@ -77,12 +77,13 @@ public class MainActivity extends Activity {
     }
 
     private void installFridaTools() {
-        Toast.makeText(this, "جاري تجهيز أدوات الحقن بالخلفية...", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "جاري إيقاف الحماية وتجهيز فريدا...", Toast.LENGTH_LONG).show();
         new Thread(() -> {
             try {
                 extractAsset("frida-server");
                 extractAsset("frida-inject");
-                executeRootCommand("/data/local/tmp/frida-server -D", "✅ فريدا شغالة وجاهزة للحقن!");
+                // إيقاف SELinux وقتل أي سيرفر قديم معلق قبل التشغيل
+                executeRootCommand("setenforce 0 && killall frida-server ; /data/local/tmp/frida-server -D", "✅ الحماية توقفت وفريدا شغالة هسه!");
             } catch (Exception e) {
                 runOnUiThread(() -> Toast.makeText(this, "خطأ بنقل الأدوات!", Toast.LENGTH_SHORT).show());
             }
@@ -111,7 +112,6 @@ public class MainActivity extends Activity {
 
     private void monitorApp(String pkg) {
         try {
-            // كتابة السكربت بذاكرة الكاش الداخلية للتطبيق لتفادي حماية الأندرويد
             File hookFile = new File(getCacheDir(), "hook.js");
             FileWriter fw = new FileWriter(hookFile);
             fw.write("Java.perform(function() {\n");
@@ -123,10 +123,10 @@ public class MainActivity extends Activity {
             fw.write("});\n");
             fw.close();
 
-            // استخدام الرووت لنقل السكربت وتخطي الحماية
             String outDir = "/sdcard/Exhxx_Dump";
             String logPath = outDir + "/monitor_log.txt";
-            String cmd = "mkdir -p " + outDir + " && " +
+            // دمج setenforce 0 هنا أيضاً للتأكيد
+            String cmd = "setenforce 0 && mkdir -p " + outDir + " && " +
                          "cp " + hookFile.getAbsolutePath() + " /data/local/tmp/hook.js && " +
                          "chmod 777 /data/local/tmp/hook.js && " +
                          "nohup /data/local/tmp/frida-inject -f " + pkg + " -s /data/local/tmp/hook.js > " + logPath + " 2>&1 &";
