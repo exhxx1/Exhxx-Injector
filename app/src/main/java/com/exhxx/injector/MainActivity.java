@@ -29,7 +29,7 @@ public class MainActivity extends Activity {
         layout.setBackgroundColor(Color.parseColor("#121212"));
 
         TextView title = new TextView(this);
-        title.setText("Exhxx Prefs Injector V2.0 💉\nDev: Mohammed Adnan | @exhxx78");
+        title.setText("Exhxx Prefs Injector V2.1 💉\n(Ghost Mode) - Dev: Mohammed Adnan");
         title.setTextColor(Color.CYAN);
         title.setTextSize(18);
         title.setPadding(0, 0, 0, 40);
@@ -66,7 +66,7 @@ public class MainActivity extends Activity {
         xmlEditor.setGravity(android.view.Gravity.TOP | android.view.Gravity.LEFT);
 
         btnSave = new Button(this);
-        btnSave.setText("💾 حفظ وحقن التعديلات");
+        btnSave.setText("💾 حقن التعديلات (تخطي الحماية)");
         btnSave.setBackgroundColor(Color.parseColor("#43A047"));
         btnSave.setTextColor(Color.WHITE);
 
@@ -109,7 +109,6 @@ public class MainActivity extends Activity {
         pkgList.add("");
 
         for (ApplicationInfo app : apps) {
-            // جلب تطبيقات المستخدم (يمكن إزالة الشرط لجلب تطبيقات النظام أيضاً)
             if ((app.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {
                 displayNames.add(app.loadLabel(pm).toString() + " (" + app.packageName + ")");
                 pkgList.add(app.packageName);
@@ -131,7 +130,7 @@ public class MainActivity extends Activity {
             String line;
             while ((line = br.readLine()) != null) {
                 fullPathList.add(line);
-                displayFiles.add(line.replace("/data/data/" + pkg + "/", "")); // إخفاء المسار الطويل للجمالية
+                displayFiles.add(line.replace("/data/data/" + pkg + "/", ""));
             }
             
             if (displayFiles.isEmpty()) {
@@ -164,6 +163,7 @@ public class MainActivity extends Activity {
         } catch (Exception e) {}
     }
 
+    // هنا سحر الجني (ضمان 100% للتعديل)
     private void saveFile() {
         int appPos = appSpinner.getSelectedItemPosition();
         int filePos = fileSpinner.getSelectedItemPosition();
@@ -183,13 +183,23 @@ public class MainActivity extends Activity {
             fw.write(content);
             fw.close();
 
-            String cmd = "cat " + tempFile.getAbsolutePath() + " > " + fullPath;
-            Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", cmd});
+            // 1. جلب اسم المالك الحقيقي للتطبيق
+            // 2. نسخ الملف
+            // 3. تغيير الصلاحية والمالك ليتطابق مع التطبيق
+            // 4. إصلاح أمان SELinux
+            // 5. إغلاق التطبيق المستهدف إجبارياً
+            String magicCmd = 
+                "APP_OWNER=$(stat -c '%U:%G' /data/data/" + pkg + ") && " +
+                "cat " + tempFile.getAbsolutePath() + " > " + fullPath + " && " +
+                "chown $APP_OWNER " + fullPath + " && " +
+                "chmod 660 " + fullPath + " && " +
+                "restorecon " + fullPath + " && " +
+                "am force-stop " + pkg;
+
+            Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", magicCmd});
             p.waitFor();
             
-            Runtime.getRuntime().exec(new String[]{"su", "-c", "am force-stop " + pkg});
-            
-            Toast.makeText(this, "✅ تم حقن البيانات وإعادة تشغيل التطبيق!", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "✅ تمت العملية! التطبيق هسه مجبور يقرأ تعديلاتك!", Toast.LENGTH_LONG).show();
         } catch (Exception e) {
             Toast.makeText(this, "❌ فشل الحفظ!", Toast.LENGTH_SHORT).show();
         }
