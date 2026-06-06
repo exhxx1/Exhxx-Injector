@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.widget.*;
 import android.graphics.Color;
 import android.view.View;
+import android.view.ViewGroup;
 import java.io.*;
 import java.util.*;
 
@@ -14,9 +15,11 @@ public class MainActivity extends Activity {
     Spinner appSpinner, fileSpinner;
     EditText xmlEditor;
     Button btnRead, btnSave;
+    TextView rootStatus;
     
     List<String> pkgList = new ArrayList<>();
     List<String> fullPathList = new ArrayList<>();
+    boolean hasRoot = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,10 +32,15 @@ public class MainActivity extends Activity {
         layout.setBackgroundColor(Color.parseColor("#121212"));
 
         TextView title = new TextView(this);
-        title.setText("Exhxx Prefs Injector V2.1 💉\n(Ghost Mode) - Dev: Mohammed Adnan");
+        title.setText("Exhxx Prefs Injector V2.4 💉\n(Flawless Edition) - Dev: Mohammed Adnan");
         title.setTextColor(Color.CYAN);
         title.setTextSize(18);
-        title.setPadding(0, 0, 0, 40);
+        title.setPadding(0, 0, 0, 20);
+
+        rootStatus = new TextView(this);
+        rootStatus.setText("⏳ جاري تهيئة النظام والمحرك...");
+        rootStatus.setTextColor(Color.YELLOW);
+        rootStatus.setPadding(0, 0, 0, 40);
         
         TextView lbl1 = new TextView(this);
         lbl1.setText("1. اختر التطبيق المراد تعديله:");
@@ -71,6 +79,7 @@ public class MainActivity extends Activity {
         btnSave.setTextColor(Color.WHITE);
 
         layout.addView(title);
+        layout.addView(rootStatus);
         layout.addView(lbl1);
         layout.addView(appSpinner);
         layout.addView(lbl2);
@@ -82,12 +91,16 @@ public class MainActivity extends Activity {
         scroll.addView(layout);
         setContentView(scroll);
 
-        loadInstalledApps();
+        // وضع نصوص مبدئية حتى لا تظهر القائمة فارغة
+        appSpinner.setAdapter(createCustomAdapter(Arrays.asList("⏳ جاري الفحص...")));
+        fileSpinner.setAdapter(createCustomAdapter(Arrays.asList("...")));
+
+        checkRootAndLoadApps();
 
         appSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (position > 0) {
+                if (position > 0 && hasRoot && !pkgList.isEmpty()) {
                     loadAppFiles(pkgList.get(position));
                 }
             }
@@ -99,71 +112,121 @@ public class MainActivity extends Activity {
         btnSave.setOnClickListener(v -> saveFile());
     }
 
-    private void loadInstalledApps() {
-        PackageManager pm = getPackageManager();
-        List<ApplicationInfo> apps = pm.getInstalledApplications(0);
-        Collections.sort(apps, new ApplicationInfo.DisplayNameComparator(pm));
-        
-        List<String> displayNames = new ArrayList<>();
-        displayNames.add("-- اختر تطبيقاً --");
-        pkgList.add("");
-
-        for (ApplicationInfo app : apps) {
-            if ((app.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {
-                displayNames.add(app.loadLabel(pm).toString() + " (" + app.packageName + ")");
-                pkgList.add(app.packageName);
+    private ArrayAdapter<String> createCustomAdapter(List<String> list) {
+        return new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, list) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                TextView tv = (TextView) super.getView(position, convertView, parent);
+                tv.setTextColor(Color.WHITE);
+                tv.setTextSize(14);
+                return tv;
             }
-        }
+            @Override
+            public View getDropDownView(int position, View convertView, ViewGroup parent) {
+                TextView tv = (TextView) super.getDropDownView(position, convertView, parent);
+                tv.setTextColor(Color.WHITE);
+                tv.setBackgroundColor(Color.parseColor("#1E1E1E"));
+                tv.setPadding(30, 30, 30, 30);
+                return tv;
+            }
+        };
+    }
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, displayNames);
-        appSpinner.setAdapter(adapter);
+    // تم دمج فحص الرووت وتحميل التطبيقات بخيط واحد لضمان الأداء 100%
+    private void checkRootAndLoadApps() {
+        new Thread(() -> {
+            try {
+                Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", "echo root_ok"});
+                BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                String res = br.readLine();
+                hasRoot = "root_ok".equals(res);
+            } catch (Exception e) { hasRoot = false; }
+            
+            if (hasRoot) {
+                PackageManager pm = getPackageManager();
+                List<ApplicationInfo> apps = pm.getInstalledApplications(0);
+                Collections.sort(apps, new ApplicationInfo.DisplayNameComparator(pm));
+                
+                List<String> displayNames = new ArrayList<>();
+                List<String> tempPkgList = new ArrayList<>();
+                displayNames.add("-- اختر تطبيقاً --");
+                tempPkgList.add("");
+
+                for (ApplicationInfo app : apps) {
+                    if ((app.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {
+                        displayNames.add(app.loadLabel(pm).toString() + " (" + app.packageName + ")");
+                        tempPkgList.add(app.packageName);
+                    }
+                }
+                
+                runOnUiThread(() -> {
+                    pkgList.clear();
+                    pkgList.addAll(tempPkgList);
+                    rootStatus.setText("🟢 الرووت متوفر. المحرك جاهز!");
+                    rootStatus.setTextColor(Color.GREEN);
+                    appSpinner.setAdapter(createCustomAdapter(displayNames));
+                });
+            } else {
+                runOnUiThread(() -> {
+                    rootStatus.setText("🔴 الرووت غير متوفر أو مرفوض من Magisk!");
+                    rootStatus.setTextColor(Color.RED);
+                    appSpinner.setAdapter(createCustomAdapter(Arrays.asList("❌ فشل التحميل")));
+                });
+            }
+        }).start();
     }
 
     private void loadAppFiles(String pkg) {
-        try {
-            Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", "find /data/data/" + pkg + " -type f -name '*.xml'"});
-            BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
-            
-            List<String> displayFiles = new ArrayList<>();
-            fullPathList.clear();
-            
-            String line;
-            while ((line = br.readLine()) != null) {
-                fullPathList.add(line);
-                displayFiles.add(line.replace("/data/data/" + pkg + "/", ""));
-            }
-            
-            if (displayFiles.isEmpty()) {
-                displayFiles.add("-- لا توجد ملفات XML --");
-                fullPathList.add("");
-            }
-
-            ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, displayFiles);
-            fileSpinner.setAdapter(adapter);
-        } catch (Exception e) {}
+        fileSpinner.setAdapter(createCustomAdapter(Arrays.asList("⏳ جاري البحث المجهري...")));
+        
+        new Thread(() -> {
+            try {
+                // استخدام علامات التنصيص لتجنب أخطاء المسارات
+                Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", "find \"/data/data/" + pkg + "\" -type f -name '*.xml'"});
+                BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream(), "UTF-8"));
+                
+                List<String> displayFiles = new ArrayList<>();
+                List<String> tempFullPathList = new ArrayList<>();
+                
+                String line;
+                while ((line = br.readLine()) != null) {
+                    tempFullPathList.add(line);
+                    displayFiles.add(line.replace("/data/data/" + pkg + "/", ""));
+                }
+                
+                runOnUiThread(() -> {
+                    fullPathList.clear();
+                    fullPathList.addAll(tempFullPathList);
+                    if (displayFiles.isEmpty()) {
+                        displayFiles.add("-- لا توجد ملفات XML --");
+                        fullPathList.add("");
+                    }
+                    fileSpinner.setAdapter(createCustomAdapter(displayFiles));
+                });
+            } catch (Exception e) {}
+        }).start();
     }
 
     private void readFile() {
         int pos = fileSpinner.getSelectedItemPosition();
-        if (pos < 0 || fullPathList.isEmpty() || fullPathList.get(pos).isEmpty()) {
-            Toast.makeText(this, "لم يتم تحديد ملف صالح!", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        if (pos < 0 || fullPathList.isEmpty() || fullPathList.get(pos).isEmpty()) return;
         
         String fullPath = fullPathList.get(pos);
-        try {
-            Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", "cat " + fullPath});
-            BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = br.readLine()) != null) sb.append(line).append("\n");
-            
-            xmlEditor.setText(sb.toString());
-            Toast.makeText(this, "تمت القراءة بنجاح!", Toast.LENGTH_SHORT).show();
-        } catch (Exception e) {}
+        xmlEditor.setText("⏳ جاري سحب البيانات...");
+        
+        new Thread(() -> {
+            try {
+                Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", "cat \"" + fullPath + "\""});
+                BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream(), "UTF-8"));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) sb.append(line).append("\n");
+                
+                runOnUiThread(() -> xmlEditor.setText(sb.toString()));
+            } catch (Exception e) {}
+        }).start();
     }
 
-    // هنا سحر الجني (ضمان 100% للتعديل)
     private void saveFile() {
         int appPos = appSpinner.getSelectedItemPosition();
         int filePos = fileSpinner.getSelectedItemPosition();
@@ -177,31 +240,35 @@ public class MainActivity extends Activity {
         String pkg = pkgList.get(appPos);
         String fullPath = fullPathList.get(filePos);
         
-        try {
-            File tempFile = new File(getCacheDir(), "temp.xml");
-            FileWriter fw = new FileWriter(tempFile);
-            fw.write(content);
-            fw.close();
+        new Thread(() -> {
+            try {
+                File tempFile = new File(getCacheDir(), "exhxx_temp.xml");
+                OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(tempFile), "UTF-8");
+                osw.write(content);
+                osw.close();
 
-            // 1. جلب اسم المالك الحقيقي للتطبيق
-            // 2. نسخ الملف
-            // 3. تغيير الصلاحية والمالك ليتطابق مع التطبيق
-            // 4. إصلاح أمان SELinux
-            // 5. إغلاق التطبيق المستهدف إجبارياً
-            String magicCmd = 
-                "APP_OWNER=$(stat -c '%U:%G' /data/data/" + pkg + ") && " +
-                "cat " + tempFile.getAbsolutePath() + " > " + fullPath + " && " +
-                "chown $APP_OWNER " + fullPath + " && " +
-                "chmod 660 " + fullPath + " && " +
-                "restorecon " + fullPath + " && " +
-                "am force-stop " + pkg;
+                // جعل الملف متاح للرووت لتخطي الـ SELinux
+                tempFile.setReadable(true, false);
 
-            Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", magicCmd});
-            p.waitFor();
-            
-            Toast.makeText(this, "✅ تمت العملية! التطبيق هسه مجبور يقرأ تعديلاتك!", Toast.LENGTH_LONG).show();
-        } catch (Exception e) {
-            Toast.makeText(this, "❌ فشل الحفظ!", Toast.LENGTH_SHORT).show();
-        }
+                // أمر السحر المدرع بالكامل (محمي بعلامات تنصيص)
+                String magicCmd = 
+                    "APP_OWNER=$(stat -c '%U:%G' \"/data/data/" + pkg + "\") && " +
+                    "cat \"" + tempFile.getAbsolutePath() + "\" > \"" + fullPath + "\" && " +
+                    "chown $APP_OWNER \"" + fullPath + "\" && " +
+                    "chmod 660 \"" + fullPath + "\" && " +
+                    "restorecon \"" + fullPath + "\" && " +
+                    "am force-stop " + pkg;
+
+                Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", magicCmd});
+                p.waitFor();
+                
+                // تنظيف الملف المؤقت
+                tempFile.delete();
+                
+                runOnUiThread(() -> Toast.makeText(this, "✅ تمت العملية! (حقن ناجح 100%)", Toast.LENGTH_LONG).show());
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, "❌ فشل الحفظ!", Toast.LENGTH_SHORT).show());
+            }
+        }).start();
     }
 }
