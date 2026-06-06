@@ -12,14 +12,15 @@ import java.io.*;
 import java.util.*;
 
 public class MainActivity extends Activity {
-    Spinner appSpinner, fileSpinner;
+    AutoCompleteTextView appSearch;
+    Spinner fileSpinner;
     EditText xmlEditor;
     Button btnRead, btnSave;
     TextView rootStatus;
     
-    List<String> pkgList = new ArrayList<>();
     List<String> fullPathList = new ArrayList<>();
     boolean hasRoot = false;
+    String currentPkg = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -32,7 +33,7 @@ public class MainActivity extends Activity {
         layout.setBackgroundColor(Color.parseColor("#121212"));
 
         TextView title = new TextView(this);
-        title.setText("Exhxx Prefs Injector V2.4 💉\n(Flawless Edition) - Dev: Mohammed Adnan");
+        title.setText("Exhxx Prefs Injector V3.0 💉\n(Atomic Edition) - Dev: Mohammed Adnan");
         title.setTextColor(Color.CYAN);
         title.setTextSize(18);
         title.setPadding(0, 0, 0, 20);
@@ -43,17 +44,22 @@ public class MainActivity extends Activity {
         rootStatus.setPadding(0, 0, 0, 40);
         
         TextView lbl1 = new TextView(this);
-        lbl1.setText("1. اختر التطبيق المراد تعديله:");
+        lbl1.setText("1. ابحث عن التطبيق (اكتب اسمه):");
         lbl1.setTextColor(Color.WHITE);
         
-        appSpinner = new Spinner(this);
-        appSpinner.setBackgroundColor(Color.parseColor("#1E1E1E"));
-        appSpinner.setPadding(0, 20, 0, 40);
+        // مربع بحث ذكي بدل القائمة الطويلة
+        appSearch = new AutoCompleteTextView(this);
+        appSearch.setHint("🔍 اكتب حرفين من اسم التطبيق...");
+        appSearch.setHintTextColor(Color.GRAY);
+        appSearch.setTextColor(Color.WHITE);
+        appSearch.setBackgroundColor(Color.parseColor("#1E1E1E"));
+        appSearch.setPadding(25, 25, 25, 25);
+        appSearch.setThreshold(1); // يبدأ البحث من أول حرف
 
         TextView lbl2 = new TextView(this);
         lbl2.setText("2. اختر ملف البيانات (XML):");
         lbl2.setTextColor(Color.WHITE);
-        lbl2.setPadding(0, 20, 0, 0);
+        lbl2.setPadding(0, 40, 0, 0);
 
         fileSpinner = new Spinner(this);
         fileSpinner.setBackgroundColor(Color.parseColor("#1E1E1E"));
@@ -81,7 +87,7 @@ public class MainActivity extends Activity {
         layout.addView(title);
         layout.addView(rootStatus);
         layout.addView(lbl1);
-        layout.addView(appSpinner);
+        layout.addView(appSearch);
         layout.addView(lbl2);
         layout.addView(fileSpinner);
         layout.addView(btnRead);
@@ -91,34 +97,31 @@ public class MainActivity extends Activity {
         scroll.addView(layout);
         setContentView(scroll);
 
-        // وضع نصوص مبدئية حتى لا تظهر القائمة فارغة
-        appSpinner.setAdapter(createCustomAdapter(Arrays.asList("⏳ جاري الفحص...")));
-        fileSpinner.setAdapter(createCustomAdapter(Arrays.asList("...")));
+        fileSpinner.setAdapter(createSpinnerAdapter(Arrays.asList("...")));
 
         checkRootAndLoadApps();
 
-        appSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (position > 0 && hasRoot && !pkgList.isEmpty()) {
-                    loadAppFiles(pkgList.get(position));
-                }
+        // عند اختيار تطبيق من البحث
+        appSearch.setOnItemClickListener((parent, view, position, id) -> {
+            String selected = (String) parent.getItemAtPosition(position);
+            int start = selected.lastIndexOf("(");
+            int end = selected.lastIndexOf(")");
+            if (start != -1 && end != -1) {
+                currentPkg = selected.substring(start + 1, end);
+                loadAppFiles(currentPkg);
             }
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
         });
 
         btnRead.setOnClickListener(v -> readFile());
         btnSave.setOnClickListener(v -> saveFile());
     }
 
-    private ArrayAdapter<String> createCustomAdapter(List<String> list) {
+    private ArrayAdapter<String> createSpinnerAdapter(List<String> list) {
         return new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, list) {
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
                 TextView tv = (TextView) super.getView(position, convertView, parent);
                 tv.setTextColor(Color.WHITE);
-                tv.setTextSize(14);
                 return tv;
             }
             @Override
@@ -132,7 +135,6 @@ public class MainActivity extends Activity {
         };
     }
 
-    // تم دمج فحص الرووت وتحميل التطبيقات بخيط واحد لضمان الأداء 100%
     private void checkRootAndLoadApps() {
         new Thread(() -> {
             try {
@@ -144,45 +146,46 @@ public class MainActivity extends Activity {
             
             if (hasRoot) {
                 PackageManager pm = getPackageManager();
-                List<ApplicationInfo> apps = pm.getInstalledApplications(0);
-                Collections.sort(apps, new ApplicationInfo.DisplayNameComparator(pm));
-                
+                List<ApplicationInfo> apps = pm.getInstalledApplications(0); // جلب كل التطبيقات بدون استثناء
                 List<String> displayNames = new ArrayList<>();
-                List<String> tempPkgList = new ArrayList<>();
-                displayNames.add("-- اختر تطبيقاً --");
-                tempPkgList.add("");
 
                 for (ApplicationInfo app : apps) {
-                    if ((app.flags & ApplicationInfo.FLAG_SYSTEM) == 0) {
-                        displayNames.add(app.loadLabel(pm).toString() + " (" + app.packageName + ")");
-                        tempPkgList.add(app.packageName);
-                    }
+                    displayNames.add(app.loadLabel(pm).toString() + " (" + app.packageName + ")");
                 }
                 
                 runOnUiThread(() -> {
-                    pkgList.clear();
-                    pkgList.addAll(tempPkgList);
                     rootStatus.setText("🟢 الرووت متوفر. المحرك جاهز!");
                     rootStatus.setTextColor(Color.GREEN);
-                    appSpinner.setAdapter(createCustomAdapter(displayNames));
+                    
+                    // محول خاص لمربع البحث حتى يكون النص أسود وواضح
+                    ArrayAdapter<String> searchAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_dropdown_item_1line, displayNames) {
+                        @Override
+                        public View getView(int position, View convertView, ViewGroup parent) {
+                            TextView tv = (TextView) super.getView(position, convertView, parent);
+                            tv.setTextColor(Color.BLACK);
+                            tv.setPadding(30, 30, 30, 30);
+                            return tv;
+                        }
+                    };
+                    appSearch.setAdapter(searchAdapter);
                 });
             } else {
                 runOnUiThread(() -> {
                     rootStatus.setText("🔴 الرووت غير متوفر أو مرفوض من Magisk!");
                     rootStatus.setTextColor(Color.RED);
-                    appSpinner.setAdapter(createCustomAdapter(Arrays.asList("❌ فشل التحميل")));
                 });
             }
         }).start();
     }
 
     private void loadAppFiles(String pkg) {
-        fileSpinner.setAdapter(createCustomAdapter(Arrays.asList("⏳ جاري البحث المجهري...")));
+        fileSpinner.setAdapter(createSpinnerAdapter(Arrays.asList("⏳ جاري المسح المزدوج...")));
         
         new Thread(() -> {
             try {
-                // استخدام علامات التنصيص لتجنب أخطاء المسارات
-                Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", "find \"/data/data/" + pkg + "\" -type f -name '*.xml'"});
+                // السر الأكبر: مسح مسار البيانات العادي + مسار البيانات المشفرة (Device Encrypted)
+                String findCmd = "find /data/data/" + pkg + " /data/user_de/0/" + pkg + " -type f -name '*.xml' 2>/dev/null";
+                Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", findCmd});
                 BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream(), "UTF-8"));
                 
                 List<String> displayFiles = new ArrayList<>();
@@ -191,7 +194,9 @@ public class MainActivity extends Activity {
                 String line;
                 while ((line = br.readLine()) != null) {
                     tempFullPathList.add(line);
-                    displayFiles.add(line.replace("/data/data/" + pkg + "/", ""));
+                    // تنظيف المسار للجمالية
+                    String cleanName = line.replace("/data/data/" + pkg + "/", "").replace("/data/user_de/0/" + pkg + "/", "");
+                    displayFiles.add(cleanName);
                 }
                 
                 runOnUiThread(() -> {
@@ -201,7 +206,7 @@ public class MainActivity extends Activity {
                         displayFiles.add("-- لا توجد ملفات XML --");
                         fullPathList.add("");
                     }
-                    fileSpinner.setAdapter(createCustomAdapter(displayFiles));
+                    fileSpinner.setAdapter(createSpinnerAdapter(displayFiles));
                 });
             } catch (Exception e) {}
         }).start();
@@ -228,42 +233,39 @@ public class MainActivity extends Activity {
     }
 
     private void saveFile() {
-        int appPos = appSpinner.getSelectedItemPosition();
         int filePos = fileSpinner.getSelectedItemPosition();
         String content = xmlEditor.getText().toString();
         
-        if (appPos <= 0 || filePos < 0 || fullPathList.isEmpty() || fullPathList.get(filePos).isEmpty() || content.isEmpty()) {
+        if (currentPkg.isEmpty() || filePos < 0 || fullPathList.isEmpty() || fullPathList.get(filePos).isEmpty() || content.isEmpty()) {
             Toast.makeText(this, "بيانات غير مكتملة!", Toast.LENGTH_SHORT).show();
             return;
         }
         
-        String pkg = pkgList.get(appPos);
         String fullPath = fullPathList.get(filePos);
         
         new Thread(() -> {
             try {
-                File tempFile = new File(getCacheDir(), "exhxx_temp.xml");
-                OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(tempFile), "UTF-8");
-                osw.write(content);
-                osw.close();
+                // 1. الضخ المباشر عبر أنبوب الرووت (يتخطى كل حمايات التخزين)
+                Process writeProc = Runtime.getRuntime().exec(new String[]{"su", "-c", "cat > /data/local/tmp/exhxx_temp.xml"});
+                OutputStream os = writeProc.getOutputStream();
+                os.write(content.getBytes("UTF-8"));
+                os.flush();
+                os.close();
+                writeProc.waitFor();
 
-                // جعل الملف متاح للرووت لتخطي الـ SELinux
-                tempFile.setReadable(true, false);
-
-                // أمر السحر المدرع بالكامل (محمي بعلامات تنصيص)
+                // 2. أمر الحقن والتزوير الذري
                 String magicCmd = 
-                    "APP_OWNER=$(stat -c '%U:%G' \"/data/data/" + pkg + "\") && " +
-                    "cat \"" + tempFile.getAbsolutePath() + "\" > \"" + fullPath + "\" && " +
+                    "APP_OWNER=$(stat -c '%U:%G' \"/data/data/" + currentPkg + "\") && " +
+                    "if [ -z \"$APP_OWNER\" ]; then APP_OWNER=$(stat -c '%U:%G' \"/data/user_de/0/" + currentPkg + "\"); fi && " +
+                    "cat /data/local/tmp/exhxx_temp.xml > \"" + fullPath + "\" && " +
                     "chown $APP_OWNER \"" + fullPath + "\" && " +
                     "chmod 660 \"" + fullPath + "\" && " +
                     "restorecon \"" + fullPath + "\" && " +
-                    "am force-stop " + pkg;
+                    "rm /data/local/tmp/exhxx_temp.xml && " +
+                    "am force-stop " + currentPkg;
 
                 Process p = Runtime.getRuntime().exec(new String[]{"su", "-c", magicCmd});
                 p.waitFor();
-                
-                // تنظيف الملف المؤقت
-                tempFile.delete();
                 
                 runOnUiThread(() -> Toast.makeText(this, "✅ تمت العملية! (حقن ناجح 100%)", Toast.LENGTH_LONG).show());
             } catch (Exception e) {
