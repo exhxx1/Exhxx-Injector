@@ -14,9 +14,10 @@ public class MainActivity extends Activity {
     private Button btnToggle;
     private EditText keywordInput;
 
+    // تم إصلاح اسم الدالة هنا إلى onReceive
     private BroadcastReceiver uiReceiver = new BroadcastReceiver() {
         @Override
-        public void receive(Context context, Intent intent) {
+        public void onReceive(Context context, Intent intent) {
             updateUI();
         }
     };
