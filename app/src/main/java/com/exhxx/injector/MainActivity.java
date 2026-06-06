@@ -19,7 +19,7 @@ public class MainActivity extends Activity {
         layout.setBackgroundColor(Color.parseColor("#121212"));
 
         TextView title = new TextView(this);
-        title.setText("🔥 Exhxx Auto-Injector V1.1 🔥\nDeveloped by: Haider Adel");
+        title.setText("🔥 Exhxx Auto-Injector V1.1.1 (Fixed) 🔥\nDeveloped by: Haider Adel");
         title.setTextColor(Color.CYAN);
         title.setTextSize(20);
         title.setPadding(0, 0, 0, 50);
@@ -71,7 +71,6 @@ public class MainActivity extends Activity {
         Toast.makeText(this, "جاري تنصيب وتشغيل فريدا بالخلفية...", Toast.LENGTH_LONG).show();
         new Thread(() -> {
             try {
-                // استخراج السيرفر من داخل التطبيق نفسه
                 InputStream in = getAssets().open("frida-server");
                 File outFile = new File(getCacheDir(), "frida-server");
                 FileOutputStream out = new FileOutputStream(outFile);
@@ -82,7 +81,6 @@ public class MainActivity extends Activity {
                 }
                 in.close(); out.close();
                 
-                // نقل السيرفر لجذور النظام وتشغيله كمسؤول
                 String path = outFile.getAbsolutePath();
                 executeRootCommand("cp " + path + " /data/local/tmp/frida-server && chmod 755 /data/local/tmp/frida-server && /data/local/tmp/frida-server -D", "✅ فريدا شغالة هسه ومستعدة للهجوم!");
             } catch (Exception e) {
@@ -93,9 +91,13 @@ public class MainActivity extends Activity {
 
     private void dumpApp(String pkg) {
         String outDir = "/sdcard/Exhxx_Dump";
+        // السكربت الذكي لسحب التطبيق الأساسي فقط وإعطائه صلاحية القراءة
         String cmd = "mkdir -p " + outDir + " && " +
-                     "APK_PATH=$(pm path " + pkg + " | cut -d':' -f2) && " +
-                     "cp $APK_PATH " + outDir + "/" + pkg + ".apk";
+                     "APK_PATH=$(pm path " + pkg + " | grep 'base.apk' | head -n 1 | cut -d':' -f2) && " +
+                     "if [ -z \"$APK_PATH\" ]; then APK_PATH=$(pm path " + pkg + " | head -n 1 | cut -d':' -f2); fi && " +
+                     "cp \"$APK_PATH\" \"" + outDir + "/" + pkg + ".apk\" && " +
+                     "chmod 777 \"" + outDir + "/" + pkg + ".apk\"";
+                     
         executeRootCommand(cmd, "🔥 تم السحب! تلكاه بمجلد Exhxx_Dump بالذاكرة الرئيسية");
     }
 
