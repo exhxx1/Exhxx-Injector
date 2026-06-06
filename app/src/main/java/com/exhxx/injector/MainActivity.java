@@ -19,7 +19,7 @@ public class MainActivity extends Activity {
         layout.setBackgroundColor(Color.parseColor("#121212"));
 
         TextView title = new TextView(this);
-        title.setText("🔥 Exhxx Auto-Injector V1.2 🔥\nDeveloped by: Haider Adel");
+        title.setText("🔥 Exhxx Auto-Injector V1.2.1 🔥\nDeveloped by: Haider Adel");
         title.setTextColor(Color.CYAN);
         title.setTextSize(20);
         title.setPadding(0, 0, 0, 50);
@@ -111,10 +111,8 @@ public class MainActivity extends Activity {
 
     private void monitorApp(String pkg) {
         try {
-            // صناعة سكربت المراقبة (Hook.js) بالذاكرة
-            File dumpDir = new File("/sdcard/Exhxx_Dump");
-            if (!dumpDir.exists()) dumpDir.mkdirs();
-            File hookFile = new File(dumpDir, "hook.js");
+            // كتابة السكربت بذاكرة الكاش الداخلية للتطبيق لتفادي حماية الأندرويد
+            File hookFile = new File(getCacheDir(), "hook.js");
             FileWriter fw = new FileWriter(hookFile);
             fw.write("Java.perform(function() {\n");
             fw.write("  var File = Java.use('java.io.File');\n");
@@ -125,12 +123,17 @@ public class MainActivity extends Activity {
             fw.write("});\n");
             fw.close();
 
-            // تنفيذ سكربت المراقبة باستخدام frida-inject
-            String logPath = "/sdcard/Exhxx_Dump/monitor_log.txt";
-            String cmd = "nohup /data/local/tmp/frida-inject -f " + pkg + " -s " + hookFile.getAbsolutePath() + " > " + logPath + " 2>&1 &";
+            // استخدام الرووت لنقل السكربت وتخطي الحماية
+            String outDir = "/sdcard/Exhxx_Dump";
+            String logPath = outDir + "/monitor_log.txt";
+            String cmd = "mkdir -p " + outDir + " && " +
+                         "cp " + hookFile.getAbsolutePath() + " /data/local/tmp/hook.js && " +
+                         "chmod 777 /data/local/tmp/hook.js && " +
+                         "nohup /data/local/tmp/frida-inject -f " + pkg + " -s /data/local/tmp/hook.js > " + logPath + " 2>&1 &";
+            
             executeRootCommand(cmd, "🔴 بدأت المراقبة! راجع ملف monitor_log.txt بالمجلد.");
         } catch (Exception e) {
-            Toast.makeText(this, "خطأ بصناعة السكربت!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "خطأ بصناعة السكربت: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
