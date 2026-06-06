@@ -4,10 +4,16 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.widget.*;
 import android.graphics.Color;
+import android.view.View;
 import java.io.*;
 
 public class MainActivity extends Activity {
     EditText targetInput;
+    EditText keywordInput;
+    TextView terminal;
+    ScrollView scrollView;
+    Process logcatProcess;
+    boolean isLogging = false;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -15,139 +21,141 @@ public class MainActivity extends Activity {
         
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(50, 50, 50, 50);
+        layout.setPadding(40, 40, 40, 40);
         layout.setBackgroundColor(Color.parseColor("#121212"));
 
         TextView title = new TextView(this);
-        title.setText("🔥 Exhxx Auto-Injector V1.2.2 🔥\nDeveloped by: Haider Adel");
+        title.setText("🔥 Exhxx Radar V1.3 (Live Sniffer) 🔥\nDeveloped by: Haider Adel");
         title.setTextColor(Color.CYAN);
-        title.setTextSize(20);
-        title.setPadding(0, 0, 0, 50);
+        title.setTextSize(18);
+        title.setPadding(0, 0, 0, 30);
         
         targetInput = new EditText(this);
-        targetInput.setHint("اكتب حزمة التطبيق (مثال: com.whatsapp)");
+        targetInput.setHint("اسم الحزمة (مثال: iq.zain.main)");
         targetInput.setHintTextColor(Color.GRAY);
         targetInput.setTextColor(Color.WHITE);
         targetInput.setBackgroundColor(Color.parseColor("#1E1E1E"));
-        targetInput.setPadding(30, 30, 30, 30);
+        targetInput.setPadding(25, 25, 25, 25);
 
-        Button btnRoot = new Button(this);
-        btnRoot.setText("1. فحص وتفعيل الرووت (SU)");
-        btnRoot.setBackgroundColor(Color.parseColor("#1E88E5"));
-        btnRoot.setTextColor(Color.WHITE);
+        keywordInput = new EditText(this);
+        keywordInput.setHint("كلمة الفلترة (اختياري، مثلاً: http أو api)");
+        keywordInput.setHintTextColor(Color.GRAY);
+        keywordInput.setTextColor(Color.WHITE);
+        keywordInput.setBackgroundColor(Color.parseColor("#1E1E1E"));
+        keywordInput.setPadding(25, 25, 25, 25);
 
-        Button btnFrida = new Button(this);
-        btnFrida.setText("2. إيقاف الحماية وتشغيل Frida");
-        btnFrida.setBackgroundColor(Color.parseColor("#43A047"));
-        btnFrida.setTextColor(Color.WHITE);
-
-        Button btnDump = new Button(this);
-        btnDump.setText("3. استخراج الـ APK الخام");
-        btnDump.setBackgroundColor(Color.parseColor("#E53935"));
-        btnDump.setTextColor(Color.WHITE);
-
-        Button btnMonitor = new Button(this);
-        btnMonitor.setText("4. 🔴 مراقبة العمليات (Live Monitor)");
-        btnMonitor.setBackgroundColor(Color.parseColor("#8E24AA"));
-        btnMonitor.setTextColor(Color.WHITE);
-
-        btnRoot.setOnClickListener(v -> executeRootCommand("echo Root Granted", "تم تفعيل الرووت بنجاح!"));
+        LinearLayout buttonsLayout = new LinearLayout(this);
+        buttonsLayout.setOrientation(LinearLayout.HORIZONTAL);
         
-        btnFrida.setOnClickListener(v -> installFridaTools());
+        Button btnStart = new Button(this);
+        btnStart.setText("🟢 بدء الصيد");
+        btnStart.setBackgroundColor(Color.parseColor("#43A047"));
+        btnStart.setTextColor(Color.WHITE);
         
-        btnDump.setOnClickListener(v -> {
+        Button btnStop = new Button(this);
+        btnStop.setText("🔴 إيقاف وحفظ");
+        btnStop.setBackgroundColor(Color.parseColor("#E53935"));
+        btnStop.setTextColor(Color.WHITE);
+
+        // إعدادات شاشة الرادار (Terminal)
+        scrollView = new ScrollView(this);
+        terminal = new TextView(this);
+        terminal.setTextColor(Color.GREEN);
+        terminal.setBackgroundColor(Color.BLACK);
+        terminal.setPadding(20, 20, 20, 20);
+        terminal.setTextSize(12);
+        terminal.setText(">> مستعد للصيد...\n");
+        scrollView.addView(terminal);
+
+        btnStart.setOnClickListener(v -> {
             String pkg = targetInput.getText().toString().trim();
-            if(!pkg.isEmpty()) dumpApp(pkg);
-            else Toast.makeText(this, "اكتب اسم الحزمة أولاً!", Toast.LENGTH_SHORT).show();
+            String keyword = keywordInput.getText().toString().trim();
+            if(pkg.isEmpty()) {
+                Toast.makeText(this, "اكتب اسم الحزمة أولاً!", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            startSniffing(pkg, keyword);
         });
 
-        btnMonitor.setOnClickListener(v -> {
-            String pkg = targetInput.getText().toString().trim();
-            if(!pkg.isEmpty()) monitorApp(pkg);
-            else Toast.makeText(this, "اكتب اسم الحزمة أولاً!", Toast.LENGTH_SHORT).show();
-        });
+        btnStop.setOnClickListener(v -> stopSniffing());
+
+        buttonsLayout.addView(btnStart);
+        buttonsLayout.addView(btnStop);
 
         layout.addView(title);
         layout.addView(targetInput);
-        layout.addView(btnRoot);
-        layout.addView(btnFrida);
-        layout.addView(btnDump);
-        layout.addView(btnMonitor);
+        layout.addView(keywordInput);
+        layout.addView(buttonsLayout);
+        layout.addView(scrollView);
+        
         setContentView(layout);
     }
 
-    private void installFridaTools() {
-        Toast.makeText(this, "جاري إيقاف الحماية وتجهيز فريدا...", Toast.LENGTH_LONG).show();
+    private void startSniffing(String pkg, String keyword) {
+        if(isLogging) return;
+        isLogging = true;
+        terminal.setText(">> ⏳ جاري البحث عن التطبيق بالذاكرة...\n");
+
         new Thread(() -> {
             try {
-                extractAsset("frida-server");
-                extractAsset("frida-inject");
-                // إيقاف SELinux وقتل أي سيرفر قديم معلق قبل التشغيل
-                executeRootCommand("setenforce 0 && killall frida-server ; /data/local/tmp/frida-server -D", "✅ الحماية توقفت وفريدا شغالة هسه!");
+                // تصفير السجلات القديمة
+                Runtime.getRuntime().exec(new String[]{"su", "-c", "logcat -c"}).waitFor();
+
+                // سحب رقم الـ PID مال التطبيق المستهدف
+                Process pidProc = Runtime.getRuntime().exec(new String[]{"su", "-c", "pidof " + pkg});
+                BufferedReader pidReader = new BufferedReader(new InputStreamReader(pidProc.getInputStream()));
+                String pid = pidReader.readLine();
+
+                if (pid == null || pid.trim().isEmpty()) {
+                    runOnUiThread(() -> {
+                        terminal.append(">> ❌ التطبيق مو شغال! افتح التطبيق المستهدف أولاً، وبعدين اضغط بدء الصيد.\n");
+                        isLogging = false;
+                    });
+                    return;
+                }
+
+                runOnUiThread(() -> terminal.append(">> ✅ تم اصطياد التطبيق! (PID: " + pid.trim() + ")\n>> 🔴 جاري تسجيل العمليات الحية...\n--------------------------\n"));
+
+                // تشغيل المراقبة على التطبيق بالكامل
+                String cmd = "logcat --pid=" + pid.trim();
+                if (!keyword.isEmpty()) {
+                    cmd = "logcat --pid=" + pid.trim() + " | grep -iE '" + keyword + "'";
+                }
+
+                logcatProcess = Runtime.getRuntime().exec(new String[]{"su", "-c", cmd});
+                BufferedReader reader = new BufferedReader(new InputStreamReader(logcatProcess.getInputStream()));
+                String line;
+                
+                while (isLogging && (line = reader.readLine()) != null) {
+                    final String logLine = line;
+                    runOnUiThread(() -> {
+                        terminal.append(logLine + "\n");
+                        scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
+                    });
+                }
             } catch (Exception e) {
-                runOnUiThread(() -> Toast.makeText(this, "خطأ بنقل الأدوات!", Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> terminal.append(">> ❌ خطأ: " + e.getMessage() + "\n"));
+                isLogging = false;
             }
         }).start();
     }
 
-    private void extractAsset(String name) throws Exception {
-        InputStream in = getAssets().open(name);
-        File outFile = new File(getCacheDir(), name);
-        FileOutputStream out = new FileOutputStream(outFile);
-        byte[] buffer = new byte[1024];
-        int read;
-        while((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
-        in.close(); out.close();
-        executeRootCommand("cp " + outFile.getAbsolutePath() + " /data/local/tmp/" + name + " && chmod 755 /data/local/tmp/" + name, "");
-    }
-
-    private void dumpApp(String pkg) {
-        String outDir = "/sdcard/Exhxx_Dump";
-        String cmd = "mkdir -p " + outDir + " && " +
-                     "APK_PATH=$(pm path " + pkg + " | grep 'base.apk' | head -n 1 | cut -d':' -f2) && " +
-                     "if [ -z \"$APK_PATH\" ]; then APK_PATH=$(pm path " + pkg + " | head -n 1 | cut -d':' -f2); fi && " +
-                     "cp \"$APK_PATH\" \"" + outDir + "/" + pkg + ".apk\" && chmod 777 \"" + outDir + "/" + pkg + ".apk\"";
-        executeRootCommand(cmd, "🔥 تم سحب التطبيق للمجلد!");
-    }
-
-    private void monitorApp(String pkg) {
+    private void stopSniffing() {
+        if(!isLogging) return;
+        isLogging = false;
         try {
-            File hookFile = new File(getCacheDir(), "hook.js");
-            FileWriter fw = new FileWriter(hookFile);
-            fw.write("Java.perform(function() {\n");
-            fw.write("  var File = Java.use('java.io.File');\n");
-            fw.write("  File.$init.overload('java.lang.String').implementation = function(path) {\n");
-            fw.write("    console.log('[MONITOR] التطبيق يقرأ الملف: ' + path);\n");
-            fw.write("    return this.$init(path);\n");
-            fw.write("  };\n");
-            fw.write("});\n");
-            fw.close();
-
-            String outDir = "/sdcard/Exhxx_Dump";
-            String logPath = outDir + "/monitor_log.txt";
-            // دمج setenforce 0 هنا أيضاً للتأكيد
-            String cmd = "setenforce 0 && mkdir -p " + outDir + " && " +
-                         "cp " + hookFile.getAbsolutePath() + " /data/local/tmp/hook.js && " +
-                         "chmod 777 /data/local/tmp/hook.js && " +
-                         "nohup /data/local/tmp/frida-inject -f " + pkg + " -s /data/local/tmp/hook.js > " + logPath + " 2>&1 &";
+            if(logcatProcess != null) logcatProcess.destroy();
             
-            executeRootCommand(cmd, "🔴 بدأت المراقبة! راجع ملف monitor_log.txt بالمجلد.");
-        } catch (Exception e) {
-            Toast.makeText(this, "خطأ بصناعة السكربت: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void executeRootCommand(String command, String successMsg) {
-        try {
-            Process p = Runtime.getRuntime().exec("su");
-            DataOutputStream os = new DataOutputStream(p.getOutputStream());
-            os.writeBytes(command + "\n");
-            os.writeBytes("exit\n");
-            os.flush();
-            p.waitFor();
-            if(!successMsg.isEmpty()) {
-                runOnUiThread(() -> Toast.makeText(this, successMsg, Toast.LENGTH_LONG).show());
-            }
+            // حفظ السجلات بالذاكرة
+            File outDir = new File("/sdcard/Exhxx_Dump");
+            if (!outDir.exists()) outDir.mkdirs();
+            File logFile = new File(outDir, "hunter_log.txt");
+            FileWriter fw = new FileWriter(logFile);
+            fw.write(terminal.getText().toString());
+            fw.close();
+            
+            terminal.append("\n--------------------------\n>> 🛑 تم الإيقاف! السجل انحفظ بمسار Exhxx_Dump/hunter_log.txt\n");
+            scrollView.post(() -> scrollView.fullScroll(View.FOCUS_DOWN));
         } catch (Exception e) {}
     }
 }
